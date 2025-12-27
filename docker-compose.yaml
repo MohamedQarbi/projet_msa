@@ -1,9 +1,9 @@
-version: "3.8"
+version: "2.4"
 
 services:
 
   eureka-server:
-    build: ./eureka
+    build: ./eurika
     container_name: eureka-service
     ports:
       - "8761:8761"
@@ -18,9 +18,10 @@ services:
     ports:
       - "9999:9999"
     depends_on:
-      - eureka-server
+      - eureka-server  
     environment:
       - SPRING_APPLICATION_NAME=gateway-service
+  
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
     networks:
       - biblio-network
@@ -29,7 +30,8 @@ services:
     build: ./user
     container_name: user-service
     depends_on:
-      - eureka-server
+      eureka-server
+        condition: service_healthy
     environment:
       - SPRING_APPLICATION_NAME=user-service
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
