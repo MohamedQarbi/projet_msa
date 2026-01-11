@@ -5,6 +5,7 @@ services:
   eureka-server:
     build: ./eurika
     container_name: eureka-service
+    restart: on-failure
     ports:
       - "8761:8761"
     environment:
@@ -15,6 +16,7 @@ services:
   gateway-service:
     build: ./gateway
     container_name: gateway-service
+    restart: on-failure
     ports:
       - "9999:9999"
     depends_on:
@@ -29,6 +31,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.4
     container_name: zookeeper
+    restart: on-failure
     ports:
       - "2181:2181"
     environment:
@@ -40,6 +43,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.4.4
     container_name: kafka
+    restart: on-failure
     depends_on:
       - zookeeper
     ports:
@@ -57,6 +61,7 @@ services:
   notification-service:
     build: ./notification
     container_name: notification-service
+    restart: on-failure
     depends_on:
       - eureka-server
       - kafka
@@ -70,23 +75,36 @@ services:
   user-service:
     build: ./user
     container_name: user-service
+    restart: on-failure
     depends_on:
-      eureka-server
+      eureka-server:
+        condition: service_started
+      mysql-container:             
         condition: service_healthy
     environment:
       - SPRING_APPLICATION_NAME=user-service
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-container:3306/db_user?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
     networks:
       - biblio-network
 
   book-service:
     build: ./book
     container_name: book-service
+    restart: on-failure
     depends_on:
-      - eureka-server
+      eureka-server:
+        condition: service_started
+      mysql-container:             
+        condition: service_healthy
     environment:
       - SPRING_APPLICATION_NAME=book-service
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-container:3306/db_book?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
     networks:
       - biblio-network
 
@@ -94,15 +112,37 @@ services:
     build: ./emprunter
     container_name: emprunt-service
     depends_on:
-      - eureka-server
-      - user-service
-      - book-service
+      eureka-server:
+        condition: service_started
+      user-service:
+        condition: service_started
+      book-service:
+        condition: service_started
+      mysql-container:
+        condition: service_healthy
     environment:
       - SPRING_APPLICATION_NAME=emprunt-service
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-container:3306/db_emprunter?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
     networks:
       - biblio-network
-
+  mysql-container:
+    image: mysql:8.0
+    container_name: mysql-container
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: biblio_db 
+    networks:
+      - biblio-network
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 networks:
   biblio-network:
     driver: bridge
